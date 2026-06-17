@@ -415,7 +415,7 @@ export default function SimulationPage() {
                                   <div className={`cal-cell${isRestricted && !chips.length ? " restricted" : ""}`} style={{ minHeight: 40, background: hasConflict ? "#fff0f0" : undefined }}>
                                     {isRestricted && !chips.length && <span className="restricted-dot" style={{ marginTop: 12 }} />}
                                     {chips.map((e: ChipEntry, i: number) => (
-                                      <div key={i} className="cal-chip" style={{ background: e.color.bg, borderLeftColor: e.color.border, color: e.color.text, borderStyle: e.isProposed ? "dashed" : "solid", borderWidth: e.isProposed ? "1.5px 1.5px 1.5px 3px" : undefined, borderColor: e.isProposed ? e.color.border : undefined }}>
+                                      <div key={i} className="cal-chip" style={{ background: e.color.bg, color: e.color.text, borderStyle: e.isProposed ? "dashed" : "solid", borderTopWidth: e.isProposed ? "1.5px" : undefined, borderRightWidth: e.isProposed ? "1.5px" : undefined, borderBottomWidth: e.isProposed ? "1.5px" : undefined, borderLeftWidth: e.isProposed ? "3px" : undefined, borderTopColor: e.color.border, borderRightColor: e.color.border, borderBottomColor: e.color.border, borderLeftColor: e.color.border }}>
                                         <span className="cal-chip-acronym">{e.projectAcronym}</span>
                                         <span className="cal-chip-role">— {e.role}</span>
                                       </div>
