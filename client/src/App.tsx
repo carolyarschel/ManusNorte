@@ -8,6 +8,7 @@ import Calendar from "./pages/Calendar";
 import Consultants from "./pages/Consultants";
 import Projects from "./pages/Projects";
 import Simulation from "./pages/Simulation";
+import Settings from "./pages/Settings";
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
         <Route path="/consultants" component={Consultants} />
         <Route path="/projects" component={Projects} />
         <Route path="/simulation" component={Simulation} />
+        <Route path="/settings" component={Settings} />
       </Switch>
     </AppLayout>
   );

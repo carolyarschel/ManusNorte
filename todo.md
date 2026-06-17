@@ -51,7 +51,7 @@
 - [x] Consultores (CRUD, níveis, dias máx, restrições, notas, líder)
 - [x] Projetos (CRUD, status confirmed/hot/cold/archived, líder, slots, alocações)
 - [x] Simulação (SchedulerTab unificado)
-- [ ] Settings (placeholder original)
+- [x] Settings (placeholder original)
 
 ### Backend (Express portado — só muda camada de banco PG -> MySQL)
 - [x] Camada de banco MySQL (converter $1 -> ?, RETURNING, arrays, transações)
@@ -71,4 +71,4 @@
 ### Validação
 - [x] Validar visualmente cada página vs. original
 - [x] Corrigir todos os erros TypeScript (0 erros)
-- [ ] Salvar checkpoint e entregar
+- [x] Salvar checkpoint e entregar
