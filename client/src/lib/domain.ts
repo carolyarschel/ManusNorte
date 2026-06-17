@@ -123,6 +123,7 @@ export type ProjectForCapacity = {
   id: number;
   status: string;
   cadence: string;
+  acronym?: string;
   startDate?: string;
   endDate?: string;
   allocations?: { consultantId: number; weekday: number }[];
@@ -268,4 +269,11 @@ export function computeMonthlyOccupancy(
   const freeDays = Math.max(0, totalCapDays - usedDays);
   const pct = totalCapDays > 0 ? Math.round(usedDays / totalCapDays * 100) : 0;
   return { used: usedDays, total: Math.round(totalCapDays), free: Math.round(freeDays), pct };
+}
+
+// ─── Simulation helpers ───────────────────────────────────────────────────────
+export function isFullyAllocated(p: { levelSlots: { assignedConsultantId: number | null }[]; allocations?: { consultantId: number }[] }): boolean {
+  if ((p.allocations ?? []).length > 0) return true;
+  if (!p.levelSlots.length) return false;
+  return p.levelSlots.every((s) => s.assignedConsultantId !== null);
 }
