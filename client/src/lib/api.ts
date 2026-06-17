@@ -15,6 +15,10 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
   }
+  // 204 No Content — body is empty, nothing to parse
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as unknown as T;
+  }
   return res.json() as Promise<T>;
 }
 
