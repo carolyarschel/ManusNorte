@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { LuCalendar, LuGauge, LuGroup, LuBriefcaseBusiness, LuChartGantt, LuSun, LuMoon } from "react-icons/lu";
+import { useAppStore } from "@/store/useAppStore";
 
 const NAV = [
   { href: "/calendar",    icon: <LuCalendar />,          label: "Calendário"  },
@@ -13,6 +14,10 @@ const NAV = [
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [dark, setDark] = useState(false);
+  const loadAll = useAppStore((s) => s.loadAll);
+
+  // Load all data from the API on mount
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
