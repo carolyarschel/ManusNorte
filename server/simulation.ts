@@ -1,16 +1,18 @@
 /**
- * Simulation service — ported from the original Express/PostgreSQL backend.
- * Suggests consultant allocations for a list of projects based on availability
- * and constraints (max_days, restrictions, pinned_slots, level_slots).
+ * Simulation service — ported faithfully from the original Express/PostgreSQL backend.
+ * Logic is kept identical to the original simulation.service.ts.
  */
-import { consultantDb, projectDb, allocationDb, absenceDb } from "./db";
-import type { Consultant, Project, PinnedSlot, LevelSlot, Absence } from "../drizzle/schema";
+import { consultantDb, projectDb } from "./db";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type ProposedAllocation = {
   consultantId: number;
+  consultantName: string;
   weekday: number;
-  role: "líder" | "consultor";
+  role: string;
+  slotType: "level" | "pinned";
+  slotDescription: string;
+  cadence: string;
 };
 
 export type SimResult = {
@@ -21,7 +23,7 @@ export type SimResult = {
   earliestFeasibleDate: string | null;
 };
 
-type CommittedSlot = {
+type CommittedEntry = {
   consultantId: number;
   weekday: number;
   cadence: string;
@@ -30,216 +32,19 @@ type CommittedSlot = {
   projectId: number;
 };
 
-const LEVEL_RANK: Record<string, number> = { junior: 1, pleno: 2, senior: 3 };
-const WEEKDAYS = [1, 2, 3, 4, 5];
-const DAY_NAMES = ["", "seg", "ter", "qua", "qui", "sex"];
+// ── Constants ─────────────────────────────────────────────────────────────────
+const DAY_NAMES: Record<number, string> = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex" };
+const CADENCE_SHORT: Record<string, string> = {
+  weekly: "semanal",
+  biweekly_odd: "quinzenal ímpar",
+  biweekly_even: "quinzenal par",
+};
+const LEVEL_LABELS: Record<string, string> = { senior: "Sênior", pleno: "Pleno", junior: "Júnior" };
+const ALL_DAYS = [1, 2, 3, 4, 5];
+const LEVEL_RANK: Record<string, number> = { junior: 0, pleno: 1, senior: 2 };
 
-function isoWeek(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-}
-
-function toDateStr(d: Date | string): string {
-  if (typeof d === "string") return d.slice(0, 10);
-  return d.toISOString().slice(0, 10);
-}
-
-function addWeeks(dateStr: string, weeks: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + weeks * 7);
-  return toDateStr(d);
-}
-
-function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
-  return aStart <= bEnd && bStart <= aEnd;
-}
-
-function cadenceConflict(cA: string, cB: string): boolean {
-  return !(
-    (cA === "biweekly_odd" && cB === "biweekly_even") ||
-    (cA === "biweekly_even" && cB === "biweekly_odd")
-  );
-}
-
-// ── Availability helpers ──────────────────────────────────────────────────────
-function consultantBusyDays(
-  consultantId: number,
-  startDate: string,
-  endDate: string,
-  projectCadence: string,
-  committed: CommittedSlot[],
-  existingAllocs: Array<{ consultantId: number; weekday: number; cadence: string; startDate: string; endDate: string; projectId: number }>,
-): Set<number> {
-  const busy = new Set<number>();
-  const all = [
-    ...committed,
-    ...existingAllocs,
-  ];
-  for (const slot of all) {
-    if (slot.consultantId !== consultantId) continue;
-    if (!overlaps(startDate, endDate, slot.startDate, slot.endDate)) continue;
-    if (!cadenceConflict(projectCadence, slot.cadence)) continue;
-    busy.add(slot.weekday);
-  }
-  return busy;
-}
-
-function consultantUsedDays(
-  consultantId: number,
-  startDate: string,
-  endDate: string,
-  committed: CommittedSlot[],
-  existingAllocs: Array<{ consultantId: number; weekday: number; cadence: string; startDate: string; endDate: string; projectId: number }>,
-): number {
-  const daysSet = new Set<number>();
-  for (const slot of [...committed, ...existingAllocs]) {
-    if (slot.consultantId !== consultantId) continue;
-    if (!overlaps(startDate, endDate, slot.startDate, slot.endDate)) continue;
-    daysSet.add(slot.weekday);
-  }
-  return daysSet.size;
-}
-
-// ── Core simulation for a single project ─────────────────────────────────────
-async function simulateProject(
-  project: Project,
-  allConsultants: Consultant[],
-  allAbsences: Absence[],
-  existingAllocs: Array<{ consultantId: number; weekday: number; cadence: string; startDate: string; endDate: string; projectId: number }>,
-  committed: CommittedSlot[],
-  randomize: boolean,
-): Promise<SimResult> {
-  const startDate = toDateStr(project.startDate);
-  const endDate = toDateStr(project.endDate);
-  const cadence = project.cadence;
-
-  const pinnedSlots = await projectDb.getPinnedSlots(project.id);
-  const levelSlots = await projectDb.getLevelSlots(project.id);
-
-  const issues: string[] = [];
-  const suggestions: string[] = [];
-  const proposed: ProposedAllocation[] = [];
-
-  // ── 1. Pinned slots ─────────────────────────────────────────────────────────
-  for (const ps of pinnedSlots) {
-    const consultant = allConsultants.find((c) => c.id === ps.consultantId);
-    if (!consultant) {
-      issues.push(`Consultor fixado #${ps.consultantId} não encontrado`);
-      continue;
-    }
-    const restrictions = (consultant.restrictions as number[]) ?? [];
-    const busyDays = consultantBusyDays(ps.consultantId, startDate, endDate, cadence, committed, existingAllocs);
-    const absenceDays = new Set(
-      allAbsences
-        .filter((a) => a.consultantId === ps.consultantId && overlaps(startDate, endDate, toDateStr(a.startDate), toDateStr(a.endDate)))
-        .flatMap(() => WEEKDAYS) // simplified: mark all weekdays if any absence overlaps
-    );
-
-    let preferredDays = (ps.visitDays as number[]) ?? [];
-    if (!preferredDays.length) {
-      preferredDays = WEEKDAYS.filter((d) => !restrictions.includes(d) && !busyDays.has(d));
-    }
-
-    const availableDays = preferredDays.filter((d) => !busyDays.has(d) && !restrictions.includes(d));
-    const needed = ps.daysPerWeek;
-
-    if (availableDays.length < needed) {
-      issues.push(`${consultant.name} (fixado) não tem dias suficientes disponíveis (precisa ${needed}, tem ${availableDays.length})`);
-      if (availableDays.length > 0) {
-        for (const d of availableDays.slice(0, needed)) {
-          proposed.push({ consultantId: ps.consultantId, weekday: d, role: "consultor" });
-        }
-      }
-    } else {
-      const days = randomize ? shuffle(availableDays).slice(0, needed) : availableDays.slice(0, needed);
-      for (const d of days) {
-        proposed.push({ consultantId: ps.consultantId, weekday: d, role: "consultor" });
-      }
-    }
-  }
-
-  // ── 2. Level slots ──────────────────────────────────────────────────────────
-  const pinnedConsultantIds = new Set(pinnedSlots.map((ps) => ps.consultantId));
-
-  for (const ls of levelSlots) {
-    const eligible = allConsultants.filter((c) => {
-      if (pinnedConsultantIds.has(c.id)) return false;
-      if (proposed.some((p) => p.consultantId === c.id)) return false;
-      if ((LEVEL_RANK[c.level] ?? 0) < (LEVEL_RANK[ls.level] ?? 0)) return false;
-      if (ls.isLeader && !c.isLeader) return false;
-      return true;
-    });
-
-    if (!eligible.length) {
-      const label = `${ls.isLeader ? "líder " : ""}${ls.level}`;
-      issues.push(`Nenhum consultor elegível para slot ${label}`);
-      suggestions.push(`Considere adicionar um consultor de nível ${ls.level}${ls.isLeader ? " com perfil de líder" : ""}`);
-      continue;
-    }
-
-    // Score candidates: prefer those with fewer committed days
-    const scored = eligible.map((c) => {
-      const usedDays = consultantUsedDays(c.id, startDate, endDate, committed, existingAllocs);
-      const busyDays = consultantBusyDays(c.id, startDate, endDate, cadence, committed, existingAllocs);
-      const restrictions = (c.restrictions as number[]) ?? [];
-      const availableDays = WEEKDAYS.filter((d) => !busyDays.has(d) && !restrictions.includes(d));
-      return { consultant: c, usedDays, availableDays };
-    }).filter((s) => s.availableDays.length >= ls.daysPerWeek);
-
-    if (!scored.length) {
-      const label = `${ls.isLeader ? "líder " : ""}${ls.level}`;
-      issues.push(`Nenhum consultor elegível tem dias disponíveis suficientes para slot ${label}`);
-      continue;
-    }
-
-    scored.sort((a, b) => a.usedDays - b.usedDays);
-    if (randomize) shuffle(scored);
-
-    const chosen = scored[0];
-    const days = randomize
-      ? shuffle(chosen.availableDays).slice(0, ls.daysPerWeek)
-      : chosen.availableDays.slice(0, ls.daysPerWeek);
-
-    const role: "líder" | "consultor" = ls.isLeader ? "líder" : "consultor";
-    for (const d of days) {
-      proposed.push({ consultantId: chosen.consultant.id, weekday: d, role });
-    }
-  }
-
-  const feasible = issues.length === 0 && (pinnedSlots.length + levelSlots.length) > 0 && proposed.length > 0;
-
-  // ── 3. Earliest feasible date (if not feasible) ──────────────────────────────
-  let earliestFeasibleDate: string | null = null;
-  if (!feasible && issues.length > 0) {
-    // Try up to 12 weeks in the future
-    for (let w = 1; w <= 12; w++) {
-      const newStart = addWeeks(startDate, w);
-      const duration = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (7 * 86400000));
-      const newEnd = addWeeks(endDate, w);
-      // Quick check: can all level slots be filled?
-      let canFill = true;
-      for (const ls of levelSlots) {
-        const eligible = allConsultants.filter((c) => {
-          if ((LEVEL_RANK[c.level] ?? 0) < (LEVEL_RANK[ls.level] ?? 0)) return false;
-          if (ls.isLeader && !c.isLeader) return false;
-          const busyDays = consultantBusyDays(c.id, newStart, newEnd, cadence, committed, existingAllocs);
-          const restrictions = (c.restrictions as number[]) ?? [];
-          const available = WEEKDAYS.filter((d) => !busyDays.has(d) && !restrictions.includes(d));
-          return available.length >= ls.daysPerWeek;
-        });
-        if (!eligible.length) { canFill = false; break; }
-      }
-      if (canFill) {
-        earliestFeasibleDate = newStart;
-        break;
-      }
-    }
-  }
-
-  return { feasible, issues, suggestions, proposed, earliestFeasibleDate };
+function meetsMinLevel(consultantLevel: string, requiredMin: string): boolean {
+  return (LEVEL_RANK[consultantLevel] ?? 0) >= (LEVEL_RANK[requiredMin] ?? 0);
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -251,61 +56,479 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function toDateStr(d: Date | string | null | undefined): string {
+  if (!d) return "2000-01-01";
+  if (typeof d === "string") return d.slice(0, 10);
+  return d.toISOString().slice(0, 10);
+}
+
+function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  return aStart <= bEnd && bStart <= aEnd;
+}
+
+function isAlternating(cadenceA: string, cadenceB: string): boolean {
+  return (
+    (cadenceA === "biweekly_odd" && cadenceB === "biweekly_even") ||
+    (cadenceA === "biweekly_even" && cadenceB === "biweekly_odd")
+  );
+}
+
+/**
+ * Returns weekdays that are BLOCKED for a consultant given a target project's dates/cadence.
+ */
+function getBlockedDays(
+  consultantId: number,
+  targetProject: { startDate: string; endDate: string; cadence: string },
+  allCommitted: CommittedEntry[],
+): number[] {
+  const blocked = new Set<number>();
+  for (const entry of allCommitted) {
+    if (entry.consultantId !== consultantId) continue;
+    if (!rangesOverlap(targetProject.startDate, targetProject.endDate, entry.startDate, entry.endDate)) continue;
+    if (isAlternating(targetProject.cadence, entry.cadence)) continue;
+    blocked.add(entry.weekday);
+  }
+  return Array.from(blocked);
+}
+
+/**
+ * Pick `needed` days for a consultant.
+ * - First include mandatory days (mustInclude that are not blocked).
+ * - Then fill from preferred, then from days already used by the project, then free days.
+ */
+function pickDays(
+  needed: number,
+  mustInclude: number[],
+  preferred: number[],
+  blocked: Set<number>,
+  projectUsedDays: number[],
+  randomize: boolean,
+): number[] {
+  const mandatory = mustInclude.filter((d) => !blocked.has(d));
+  if (mandatory.length > needed) return mandatory.slice(0, needed);
+  const remaining = needed - mandatory.length;
+  if (remaining === 0) return mandatory;
+  const available = ALL_DAYS.filter((d) => !blocked.has(d) && !mandatory.includes(d));
+  let candidates = [
+    ...preferred.filter((d) => available.includes(d)),
+    ...available.filter((d) => !preferred.includes(d) && projectUsedDays.includes(d)),
+    ...available.filter((d) => !preferred.includes(d) && !projectUsedDays.includes(d)),
+  ];
+  candidates = Array.from(new Set(candidates));
+  if (randomize) candidates = shuffle(candidates);
+  return mandatory.concat(candidates.slice(0, remaining)).sort((a, b) => a - b);
+}
+
+// ── Core simulation ───────────────────────────────────────────────────────────
+async function runSimulation(
+  projectId: number,
+  allConsultants: Awaited<ReturnType<typeof consultantDb.findAll>>,
+  allCommitted: CommittedEntry[],
+  randomize: boolean,
+  projectOverrides?: { startDate?: string; endDate?: string; cadence?: string },
+): Promise<SimResult> {
+  const project = await projectDb.findById(projectId);
+  if (!project) {
+    return { feasible: false, issues: ["Projeto não encontrado"], suggestions: [], proposed: [], earliestFeasibleDate: null };
+  }
+  const startDate = projectOverrides?.startDate ?? toDateStr(project.startDate);
+  const endDate   = projectOverrides?.endDate   ?? toDateStr(project.endDate);
+  const effectiveCadence = projectOverrides?.cadence ?? project.cadence;
+  const targetProject = { startDate, endDate, cadence: effectiveCadence };
+  const levelSlots  = await projectDb.getLevelSlots(projectId);
+  const pinnedSlots = await projectDb.getPinnedSlots(projectId);
+
+  // Effective cadence per pinned consultant (slot override or project default)
+  const pinnedCadence = (consultantId: number): string =>
+    (pinnedSlots.find((s) => s.consultantId === consultantId) as unknown as { cadence?: string })?.cadence ?? effectiveCadence;
+
+  // Load existing allocations for this project
+  const existingAllocations = await projectDb.getAllocations(projectId);
+  const existingConsultantIds = new Set(existingAllocations.map((a) => a.consultantId));
+  const selfCommitted: CommittedEntry[] = existingAllocations.map((a) => ({
+    consultantId: a.consultantId,
+    weekday:      a.weekday,
+    cadence:      pinnedCadence(a.consultantId),
+    startDate,
+    endDate,
+    projectId,
+  }));
+
+  // Merge: other-project committed + this project's own existing allocations
+  const allCommittedFull = [...allCommitted, ...selfCommitted];
+
+  const issues: string[] = [];
+  const suggestions: string[] = [];
+  const proposed: ProposedAllocation[] = [];
+  const factor = effectiveCadence === "weekly" ? 1 : 0.5;
+  const projectUsedDays: number[] = [];
+
+  // Build blocked days per consultant using all committed (incl. self)
+  const getBlocked = (cId: number): Set<number> => {
+    const consultant = allConsultants.find((c) => c.id === cId);
+    const restrictions = (consultant?.restrictions as number[]) ?? [];
+    const busy = getBlockedDays(cId, targetProject, allCommittedFull);
+    return new Set(Array.from(restrictions).concat(Array.from(busy)));
+  };
+
+  // Track tentative load — only count allocations from projects that overlap
+  const loadMap: Record<number, number> = {};
+  for (const c of allConsultants) {
+    loadMap[c.id] = allCommittedFull
+      .filter((e) =>
+        e.consultantId === c.id &&
+        rangesOverlap(targetProject.startDate, targetProject.endDate, e.startDate, e.endDate),
+      )
+      .reduce((sum: number, e) => sum + (e.cadence === "weekly" ? 1 : 0.5), 0);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 1: Resolve LEADERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  const leaderSlots    = levelSlots.filter((s) => s.isLeader);
+  const nonLeaderSlots = levelSlots.filter((s) => !s.isLeader);
+  const designatedLeaderId = (project as unknown as { leaderConsultantId?: number | null }).leaderConsultantId ?? null;
+
+  // Days of the designated primary leader — set exactly ONCE
+  const primaryLeaderDays: number[] = [];
+  function lockPrimaryLeaderDays(days: number[]) {
+    if (primaryLeaderDays.length === 0) {
+      days.forEach((d) => { if (!primaryLeaderDays.includes(d)) primaryLeaderDays.push(d); });
+    }
+  }
+
+  // 1a. Pinned leaders — sort so the designated leader's slot is processed first
+  const pinnedLeaderSlots = pinnedSlots
+    .filter((s) => allConsultants.find((x) => x.id === s.consultantId)?.isLeader)
+    .sort((a, b) => {
+      if (a.consultantId === designatedLeaderId) return -1;
+      if (b.consultantId === designatedLeaderId) return 1;
+      return 0;
+    });
+
+  for (const slot of pinnedLeaderSlots) {
+    const c = allConsultants.find((x) => x.id === slot.consultantId);
+    if (!c) continue;
+    if (existingConsultantIds.has(c.id)) {
+      const existingDays = selfCommitted.filter((e) => e.consultantId === c.id).map((e) => e.weekday);
+      existingDays.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+      lockPrimaryLeaderDays(existingDays);
+      continue;
+    }
+    const blocked = getBlocked(c.id);
+    const mustInclude = primaryLeaderDays.length > 0 ? primaryLeaderDays : [];
+    const slotVisitDays = (slot.visitDays as number[]) ?? [];
+    const days = pickDays(slot.daysPerWeek, mustInclude, slotVisitDays, blocked, projectUsedDays, randomize);
+    const slotCad = (slot as unknown as { cadence?: string }).cadence ?? effectiveCadence;
+    const slotFactor = slotCad === "weekly" ? 1 : 0.5;
+    if (days.length < slot.daysPerWeek) {
+      issues.push(`${c.name} (líder pinado): dias insuficientes`);
+      continue;
+    }
+    const cost = days.length * slotFactor;
+    if (loadMap[c.id] + cost > c.maxDays) {
+      issues.push(`${c.name} ficaria acima da capacidade`);
+      continue;
+    }
+    loadMap[c.id] += cost;
+    days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+    lockPrimaryLeaderDays(days);
+    const role = (designatedLeaderId === null || c.id === designatedLeaderId) ? "lider" : "consultor";
+    for (const d of days) {
+      proposed.push({
+        consultantId: c.id, consultantName: c.name, weekday: d,
+        role,
+        slotType: "pinned",
+        slotDescription: `${c.name} (${role === "lider" ? "líder" : "consultor"}${slotCad !== effectiveCadence ? " · " + CADENCE_SHORT[slotCad] : ""})`,
+        cadence: slotCad,
+      });
+    }
+  }
+
+  // 1b. Level leader slots
+  for (const slot of leaderSlots) {
+    const proposedIds = Array.from(new Set(proposed.map((p) => p.consultantId)));
+    let candidates = allConsultants.filter((c) => {
+      if (!meetsMinLevel(c.level, slot.level)) return false;
+      if (!c.isLeader) return false;
+      if (proposedIds.includes(c.id)) return false;
+      if (existingConsultantIds.has(c.id)) return false;
+      return true;
+    });
+    if (randomize) candidates = shuffle(candidates);
+    else candidates.sort((a, b) => {
+      const ae = a.level === slot.level ? 0 : 1;
+      const be = b.level === slot.level ? 0 : 1;
+      return ae !== be ? ae - be : loadMap[a.id] - loadMap[b.id];
+    });
+    if (designatedLeaderId) {
+      candidates.sort((a, b) => {
+        if (a.id === designatedLeaderId) return -1;
+        if (b.id === designatedLeaderId) return 1;
+        return 0;
+      });
+    }
+    let filled = false;
+    for (const c of candidates) {
+      const blocked = getBlocked(c.id);
+      const mustInclude = primaryLeaderDays.length > 0 ? primaryLeaderDays : [];
+      const slotVisitDays = (slot.visitDays as number[]) ?? [];
+      const days = pickDays(slot.daysPerWeek, mustInclude, slotVisitDays, blocked, projectUsedDays, randomize);
+      if (days.length < slot.daysPerWeek) continue;
+      const cost = days.length * factor;
+      if (loadMap[c.id] + cost > c.maxDays) continue;
+      loadMap[c.id] += cost;
+      days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+      lockPrimaryLeaderDays(days);
+      for (const d of days) {
+        proposed.push({
+          consultantId: c.id, consultantName: c.name, weekday: d,
+          role: "lider", slotType: "level",
+          slotDescription: `Líder ${LEVEL_LABELS[slot.level]}+`,
+          cadence: effectiveCadence,
+        });
+      }
+      suggestions.push(`Líder ${LEVEL_LABELS[slot.level]}+: ${c.name} (${LEVEL_LABELS[c.level]}) — ${days.map((d) => DAY_NAMES[d]).join(", ")}`);
+      filled = true;
+      break;
+    }
+    if (!filled) issues.push(`Sem líder ${LEVEL_LABELS[slot.level]}+ disponível (${slot.daysPerWeek}d/sem)`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 2: Resolve NON-LEADERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 2a. Pinned non-leaders
+  const pinnedNonLeaderSlots = pinnedSlots.filter(
+    (s) => !allConsultants.find((x) => x.id === s.consultantId)?.isLeader,
+  );
+  for (const slot of pinnedNonLeaderSlots) {
+    const c = allConsultants.find((x) => x.id === slot.consultantId);
+    if (!c) continue;
+    if (existingConsultantIds.has(c.id)) {
+      const existingDays = selfCommitted.filter((e) => e.consultantId === c.id).map((e) => e.weekday);
+      existingDays.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+      continue;
+    }
+    const blocked = getBlocked(c.id);
+    const mustInclude = primaryLeaderDays.length > 0 ? primaryLeaderDays : [];
+    const slotVisitDays = (slot.visitDays as number[]) ?? [];
+    const days = pickDays(slot.daysPerWeek, mustInclude, slotVisitDays, blocked, projectUsedDays, randomize);
+    const slotCad = (slot as unknown as { cadence?: string }).cadence ?? effectiveCadence;
+    const slotFactor = slotCad === "weekly" ? 1 : 0.5;
+    if (days.length < slot.daysPerWeek) {
+      issues.push(`${c.name} (fixado): dias insuficientes`);
+      if (days.length > 0) {
+        for (const d of days) {
+          proposed.push({
+            consultantId: c.id, consultantName: c.name, weekday: d,
+            role: "consultor", slotType: "pinned",
+            slotDescription: `${c.name}${slotCad !== effectiveCadence ? " · " + CADENCE_SHORT[slotCad] : ""}`,
+            cadence: slotCad,
+          });
+        }
+      }
+      continue;
+    }
+    const cost = days.length * slotFactor;
+    if (loadMap[c.id] + cost > c.maxDays) {
+      issues.push(`${c.name} ficaria acima da capacidade`);
+      continue;
+    }
+    loadMap[c.id] += cost;
+    days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+    for (const d of days) {
+      proposed.push({
+        consultantId: c.id, consultantName: c.name, weekday: d,
+        role: "consultor", slotType: "pinned",
+        slotDescription: `${c.name}${slotCad !== effectiveCadence ? " · " + CADENCE_SHORT[slotCad] : ""}`,
+        cadence: slotCad,
+      });
+    }
+  }
+
+  // 2b. Level non-leader slots
+  for (const slot of nonLeaderSlots) {
+    const proposedIds = Array.from(new Set(proposed.map((p) => p.consultantId)));
+    let candidates = allConsultants.filter((c) => {
+      if (!meetsMinLevel(c.level, slot.level)) return false;
+      if (proposedIds.includes(c.id)) return false;
+      if (existingConsultantIds.has(c.id)) return false;
+      return true;
+    });
+    if (randomize) candidates = shuffle(candidates);
+    else candidates.sort((a, b) => {
+      const ae = a.level === slot.level ? 0 : 1;
+      const be = b.level === slot.level ? 0 : 1;
+      return ae !== be ? ae - be : loadMap[a.id] - loadMap[b.id];
+    });
+    let filled = false;
+    for (const c of candidates) {
+      const blocked = getBlocked(c.id);
+      const slotVisitDays = (slot.visitDays as number[]) ?? [];
+      const days = pickDays(slot.daysPerWeek, primaryLeaderDays, slotVisitDays, blocked, projectUsedDays, randomize);
+      if (days.length < slot.daysPerWeek) continue;
+      const cost = days.length * factor;
+      if (loadMap[c.id] + cost > c.maxDays) continue;
+      loadMap[c.id] += cost;
+      days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+      for (const d of days) {
+        proposed.push({
+          consultantId: c.id, consultantName: c.name, weekday: d,
+          role: "consultor", slotType: "level",
+          slotDescription: `${LEVEL_LABELS[slot.level]}+`,
+          cadence: effectiveCadence,
+        });
+      }
+      suggestions.push(`${LEVEL_LABELS[slot.level]}+: ${c.name} (${LEVEL_LABELS[c.level]}) — ${days.map((d) => DAY_NAMES[d]).join(", ")}`);
+      filled = true;
+      break;
+    }
+    if (!filled) issues.push(`Sem ${LEVEL_LABELS[slot.level]}+ disponível (${slot.daysPerWeek}d/sem)`);
+  }
+
+  return { feasible: issues.length === 0, issues, suggestions, proposed, earliestFeasibleDate: null };
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 export const simulationService = {
+  /**
+   * Simulate one or more projects together.
+   * For each project, considers date-aware conflicts and tentative allocations
+   * from previously simulated projects in the batch.
+   */
   async simulateBatch(
     projectIds: number[],
     randomize = false,
+    extraCommitted: CommittedEntry[] = [],
   ): Promise<Record<number, SimResult>> {
     const allConsultants = await consultantDb.findAll();
-    const allAbsences = await absenceDb.findAll();
 
-    // Build existing confirmed allocations as constraints
+    // Load committed allocations from DB, excluding all projects being simulated
     const allProjects = await projectDb.findAll();
-    const confirmedProjects = allProjects.filter((p) => p.status === "confirmed" && !projectIds.includes(p.id));
-    const existingAllocs: CommittedSlot[] = [];
-    for (const p of confirmedProjects) {
+    const baseCommitted: CommittedEntry[] = [];
+    for (const p of allProjects) {
+      if (projectIds.includes(p.id)) continue;
+      if (p.status === "archived") continue;
       const allocs = await projectDb.getAllocations(p.id);
       for (const a of allocs) {
-        existingAllocs.push({
+        baseCommitted.push({
           consultantId: a.consultantId,
-          weekday: a.weekday,
-          cadence: p.cadence,
-          startDate: toDateStr(p.startDate),
-          endDate: toDateStr(p.endDate),
-          projectId: p.id,
+          weekday:      a.weekday,
+          cadence:      p.cadence,
+          startDate:    toDateStr(p.startDate),
+          endDate:      toDateStr(p.endDate),
+          projectId:    p.id,
         });
       }
     }
+    const committed = [...baseCommitted, ...extraCommitted];
+
+    // Pre-load existing DB allocations for every batch project
+    const batchExisting = new Map<number, CommittedEntry[]>();
+    for (const pid of projectIds) {
+      const proj = allProjects.find((p) => p.id === pid);
+      if (!proj) continue;
+      const sd = toDateStr(proj.startDate);
+      const ed = toDateStr(proj.endDate);
+      const allocs = await projectDb.getAllocations(pid);
+      batchExisting.set(pid, allocs.map((a) => ({
+        consultantId: a.consultantId,
+        weekday:      a.weekday,
+        cadence:      proj.cadence,
+        startDate:    sd,
+        endDate:      ed,
+        projectId:    pid,
+      })));
+    }
 
     const results: Record<number, SimResult> = {};
-    const committed: CommittedSlot[] = [];
+    const tentative: CommittedEntry[] = [];
+    const processedIds = new Set<number>();
 
     for (const projectId of projectIds) {
       const project = allProjects.find((p) => p.id === projectId);
       if (!project) {
-        results[projectId] = { feasible: false, issues: ["Projeto não encontrado"], suggestions: [], proposed: [], earliestFeasibleDate: null };
+        results[projectId] = {
+          feasible: false, issues: ["Projeto não encontrado"],
+          suggestions: [], proposed: [], earliestFeasibleDate: null,
+        };
         continue;
       }
+      const startDate = toDateStr(project.startDate);
+      const endDate   = toDateStr(project.endDate);
 
-      const result = await simulateProject(project, allConsultants, allAbsences, existingAllocs, committed, randomize);
-      results[projectId] = result;
-
-      // Add proposed allocations to committed for subsequent projects
-      if (result.proposed.length > 0) {
-        for (const p of result.proposed) {
-          committed.push({
-            consultantId: p.consultantId,
-            weekday: p.weekday,
-            cadence: project.cadence,
-            startDate: toDateStr(project.startDate),
-            endDate: toDateStr(project.endDate),
-            projectId: project.id,
-          });
+      // Constraints = DB base + existing allocs of sibling projects NOT yet processed
+      const siblingExisting: CommittedEntry[] = [];
+      for (const [pid, entries] of Array.from(batchExisting)) {
+        if (pid !== projectId && !processedIds.has(pid)) {
+          siblingExisting.push(...entries);
         }
       }
-    }
+      const allCommitted = [...committed, ...siblingExisting, ...tentative];
 
+      const result = await runSimulation(projectId, allConsultants, allCommitted, randomize);
+      processedIds.add(projectId);
+
+      if (result.feasible) {
+        const proposedSet = new Set(result.proposed.map((a) => `${a.consultantId}-${a.weekday}`));
+        for (const alloc of result.proposed) {
+          tentative.push({
+            consultantId: alloc.consultantId,
+            weekday:      alloc.weekday,
+            cadence:      alloc.cadence,
+            startDate,
+            endDate,
+            projectId,
+          });
+        }
+        // Also add pre-existing allocations not covered by proposals
+        for (const entry of (batchExisting.get(projectId) ?? [])) {
+          if (!proposedSet.has(`${entry.consultantId}-${entry.weekday}`)) {
+            tentative.push(entry);
+          }
+        }
+      } else {
+        // Try to find earliest feasible start date (shift by 1 week, up to 26 weeks)
+        const originalDuration = new Date(endDate).getTime() - new Date(startDate).getTime();
+        for (let weeksOffset = 1; weeksOffset <= 26; weeksOffset++) {
+          const newStart = new Date(new Date(startDate).getTime() + weeksOffset * 7 * 86400000);
+          const newEnd   = new Date(newStart.getTime() + originalDuration);
+          const newStartStr = newStart.toISOString().split("T")[0];
+          const newEndStr   = newEnd.toISOString().split("T")[0];
+          const retry = await runSimulation(
+            projectId, allConsultants, allCommitted, false,
+            { startDate: newStartStr, endDate: newEndStr },
+          );
+          if (retry.feasible) {
+            result.earliestFeasibleDate = newStartStr;
+            result.suggestions.push(
+              `Data mais cedo viável: ${newStartStr} (${weeksOffset} semana${weeksOffset > 1 ? "s" : ""} depois)`,
+            );
+            break;
+          }
+        }
+        // If weekly and still infeasible, try biweekly cadences
+        if (project.cadence === "weekly") {
+          for (const bwCadence of ["biweekly_odd", "biweekly_even"] as const) {
+            const bwRetry = await runSimulation(
+              projectId, allConsultants, allCommitted, false,
+              { cadence: bwCadence },
+            );
+            if (bwRetry.feasible) {
+              const label =
+                bwCadence === "biweekly_odd"
+                  ? "quinzenal (semanas ímpares)"
+                  : "quinzenal (semanas pares)";
+              result.suggestions.push(`Alternativa: viável como projeto ${label} na data original`);
+              break;
+            }
+          }
+        }
+      }
+      results[projectId] = result;
+    }
     return results;
   },
 };

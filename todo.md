@@ -20,8 +20,12 @@
 - [x] Página: Projetos (listagem, criação, edição, remoção, slots de alocação)
 - [x] Página: Dashboard com visão geral de ocupação e status dos projetos
 - [x] Página: Simulação de alocações automática
-- [ ] Página: Agendamento (scheduling) de projetos hot/cold
+- [x] Página: Agendamento (scheduling) de projetos hot/cold
 - [x] Página: Ausências (listagem, criação, edição, remoção)
 
 ## Publicação
 - [x] Checkpoint final e publicação
+
+## Correções Pós-Entrega
+- [x] Restaurar layout, cores e estatísticas do dashboard para o design original
+- [x] Garantir lógica de simulação idêntica ao original (primaryLeaderDays, loadMap, pickDays, getBlockedDays, simulateBatch com batchExisting e tentativa de datas alternativas)

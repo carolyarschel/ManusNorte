@@ -76,7 +76,8 @@ export const appRouter = router({
         const projAllocs = allAllocs.filter((a) => a.projectId === p.id);
         const ps = await projectDb.getPinnedSlots(p.id);
         const ls = await projectDb.getLevelSlots(p.id);
-        return { ...p, visitDays: (p.visitDays as number[]) ?? [], allocations: projAllocs, pinnedSlots: ps, levelSlots: ls };
+        const allocatedConsultants = Array.from(new Set(projAllocs.map((a) => a.consultantId)));
+        return { ...p, visitDays: (p.visitDays as number[]) ?? [], allocations: projAllocs, pinnedSlots: ps, levelSlots: ls, allocatedConsultants };
       }));
     }),
     getById: publicProcedure
