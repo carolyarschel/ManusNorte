@@ -74,6 +74,6 @@
 - [x] Salvar checkpoint e entregar
 
 ## Correções de Simulação (feedback do usuário)
-- [ ] Corrigir "Viável na data original" quando há issues bloqueantes (feasible deve respeitar o backend)
-- [ ] Separar issues (bloqueantes) de suggestions (informativas) na resposta REST
+- [x] Corrigir "Viável na data original" quando há issues bloqueantes (feasible deve respeitar o backend)
+- [x] Separar issues (bloqueantes) de suggestions (informativas) na resposta REST
 - [x] Regra: Júnior deve compartilhar pelo menos 1 dia de visita com um Pleno/Sênior
