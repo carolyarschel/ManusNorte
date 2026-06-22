@@ -34,7 +34,7 @@ export const api = {
       req<Consultant>(`/consultants/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     remove: (id: number) => req<void>(`/consultants/${id}`, { method: "DELETE" }),
     busyDays: (id: number) =>
-      req<{ weekday: number; projectId: number; cadence: string }[]>(`/consultants/${id}/busy-days`),
+      req<number[]>(`/consultants/${id}/busy`),
   },
 
   projects: {
@@ -84,7 +84,7 @@ export const api = {
 
     // Allocations
     setAllocations: (projectId: number, allocations: { consultantId: number; weekday: number; role: string }[]) =>
-      req<Allocation[]>(`/projects/${projectId}/allocations`, { method: "PUT", body: JSON.stringify({ allocations }) }),
+      req<{ success: boolean }>(`/projects/${projectId}/allocations`, { method: "POST", body: JSON.stringify(allocations) }),
     removeAllocations: (projectId: number) =>
       req<void>(`/projects/${projectId}/allocations`, { method: "DELETE" }),
   },
@@ -113,9 +113,12 @@ export const api = {
 export interface SimulationResult {
   results: {
     projectId: number;
+    feasible: boolean;
     allocations: { consultantId: number; weekday: number; role: string }[];
+    issues: string[];
+    suggestions: string[];
     warnings: string[];
     suggestedStartDate?: string | null;
   }[];
-  warnings: string[];
+  warnings?: string[];
 }

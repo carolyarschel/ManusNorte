@@ -42,11 +42,10 @@ function apiResultToSimResult(
       slotDescription: `${DAY_NAMES[a.weekday]} · ${a.role}`,
     };
   });
-  const feasible = r.allocations.length > 0;
   return {
-    feasible,
-    issues: r.warnings.filter((w) => w.startsWith("⚠") || w.startsWith("❌") || !w.startsWith("✓")),
-    suggestions: r.warnings.filter((w) => w.startsWith("✓")),
+    feasible: r.feasible,
+    issues: r.issues ?? [],
+    suggestions: r.suggestions ?? [],
     proposed,
     earliestFeasibleDate: r.suggestedStartDate ?? null,
   };

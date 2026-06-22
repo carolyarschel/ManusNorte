@@ -162,6 +162,14 @@ async function runSimulation(
   const proposed: ProposedAllocation[] = [];
   const factor = effectiveCadence === "weekly" ? 1 : 0.5;
   const projectUsedDays: number[] = [];
+  // Days covered by a Pleno/Sênior consultant in THIS project (for the Júnior pairing rule)
+  const seniorPlenoDays: number[] = [];
+  const addSeniorPlenoDays = (cId: number, days: number[]) => {
+    const lvl = allConsultants.find((x) => x.id === cId)?.level;
+    if (lvl === "pleno" || lvl === "senior") {
+      days.forEach((d) => { if (!seniorPlenoDays.includes(d)) seniorPlenoDays.push(d); });
+    }
+  };
 
   // Build blocked days per consultant using all committed (incl. self)
   const getBlocked = (cId: number): Set<number> => {
@@ -213,6 +221,7 @@ async function runSimulation(
       const existingDays = selfCommitted.filter((e) => e.consultantId === c.id).map((e) => e.weekday);
       existingDays.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
       lockPrimaryLeaderDays(existingDays);
+      addSeniorPlenoDays(c.id, existingDays);
       continue;
     }
     const blocked = getBlocked(c.id);
@@ -233,6 +242,7 @@ async function runSimulation(
     loadMap[c.id] += cost;
     days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
     lockPrimaryLeaderDays(days);
+    addSeniorPlenoDays(c.id, days);
     const role = (designatedLeaderId === null || c.id === designatedLeaderId) ? "lider" : "consultor";
     for (const d of days) {
       proposed.push({
@@ -280,6 +290,7 @@ async function runSimulation(
       loadMap[c.id] += cost;
       days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
       lockPrimaryLeaderDays(days);
+      addSeniorPlenoDays(c.id, days);
       for (const d of days) {
         proposed.push({
           consultantId: c.id, consultantName: c.name, weekday: d,
@@ -309,6 +320,7 @@ async function runSimulation(
     if (existingConsultantIds.has(c.id)) {
       const existingDays = selfCommitted.filter((e) => e.consultantId === c.id).map((e) => e.weekday);
       existingDays.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+      addSeniorPlenoDays(c.id, existingDays);
       continue;
     }
     const blocked = getBlocked(c.id);
@@ -338,6 +350,7 @@ async function runSimulation(
     }
     loadMap[c.id] += cost;
     days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+    addSeniorPlenoDays(c.id, days);
     for (const d of days) {
       proposed.push({
         consultantId: c.id, consultantName: c.name, weekday: d,
@@ -349,7 +362,14 @@ async function runSimulation(
   }
 
   // 2b. Level non-leader slots
-  for (const slot of nonLeaderSlots) {
+  // Process non-Junior slots FIRST so that Pleno/Sênior days are consolidated
+  // before applying the Junior pairing rule (a Junior must share ≥1 day with a Pleno/Sênior).
+  const orderedNonLeaderSlots = [...nonLeaderSlots].sort((a, b) => {
+    const aJr = a.level === "junior" ? 1 : 0;
+    const bJr = b.level === "junior" ? 1 : 0;
+    return aJr - bJr;
+  });
+  for (const slot of orderedNonLeaderSlots) {
     const proposedIds = Array.from(new Set(proposed.map((p) => p.consultantId)));
     let candidates = allConsultants.filter((c) => {
       if (!meetsMinLevel(c.level, slot.level)) return false;
@@ -364,15 +384,37 @@ async function runSimulation(
       return ae !== be ? ae - be : loadMap[a.id] - loadMap[b.id];
     });
     let filled = false;
+    let juniorPairingFailed = false;
     for (const c of candidates) {
+      const isJunior = c.level === "junior";
       const blocked = getBlocked(c.id);
       const slotVisitDays = (slot.visitDays as number[]) ?? [];
-      const days = pickDays(slot.daysPerWeek, primaryLeaderDays, slotVisitDays, blocked, projectUsedDays, randomize);
+      // For a Junior, at least one day MUST coincide with a Pleno/Sênior day.
+      // Prepend available Pleno/Sênior days as preferred so pickDays favors overlap.
+      let preferred = slotVisitDays;
+      if (isJunior && seniorPlenoDays.length > 0) {
+        const sharable = seniorPlenoDays.filter((d) => !blocked.has(d));
+        preferred = Array.from(new Set([...sharable, ...slotVisitDays]));
+      }
+      const days = pickDays(slot.daysPerWeek, primaryLeaderDays, preferred, blocked, projectUsedDays, randomize);
       if (days.length < slot.daysPerWeek) continue;
+      // Enforce the Junior pairing rule.
+      if (isJunior) {
+        if (seniorPlenoDays.length === 0) {
+          juniorPairingFailed = true;
+          continue;
+        }
+        const sharesDay = days.some((d) => seniorPlenoDays.includes(d));
+        if (!sharesDay) {
+          juniorPairingFailed = true;
+          continue;
+        }
+      }
       const cost = days.length * factor;
       if (loadMap[c.id] + cost > c.maxDays) continue;
       loadMap[c.id] += cost;
       days.forEach((d) => { if (!projectUsedDays.includes(d)) projectUsedDays.push(d); });
+      addSeniorPlenoDays(c.id, days);
       for (const d of days) {
         proposed.push({
           consultantId: c.id, consultantName: c.name, weekday: d,
@@ -385,7 +427,56 @@ async function runSimulation(
       filled = true;
       break;
     }
-    if (!filled) issues.push(`Sem ${LEVEL_LABELS[slot.level]}+ disponível (${slot.daysPerWeek}d/sem)`);
+    if (!filled) {
+      if (juniorPairingFailed && seniorPlenoDays.length === 0) {
+        issues.push(`Júnior (${LEVEL_LABELS[slot.level]}+) precisa de um Pleno/Sênior alocado no mesmo projeto`);
+      } else if (juniorPairingFailed) {
+        issues.push(`Sem ${LEVEL_LABELS[slot.level]}+ Júnior que compartilhe dia com Pleno/Sênior`);
+      } else {
+        issues.push(`Sem ${LEVEL_LABELS[slot.level]}+ disponível (${slot.daysPerWeek}d/sem)`);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FINAL CHECK: Junior pairing rule across ALL allocation paths
+  // Any proposed Junior consultant must share at least one day with a Pleno/Sênior
+  // in this project (covers pinned juniors and pre-existing allocations too).
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    // Collect Pleno/Sênior days from BOTH proposals and pre-existing allocations.
+    const plenoSeniorDays = new Set<number>(seniorPlenoDays);
+    for (const p of proposed) {
+      const lvl = allConsultants.find((c) => c.id === p.consultantId)?.level;
+      if (lvl === "pleno" || lvl === "senior") plenoSeniorDays.add(p.weekday);
+    }
+    for (const a of existingAllocations) {
+      const lvl = allConsultants.find((c) => c.id === a.consultantId)?.level;
+      if (lvl === "pleno" || lvl === "senior") plenoSeniorDays.add(a.weekday);
+    }
+    // Group proposed days per Junior consultant.
+    const juniorDays = new Map<number, { name: string; days: number[] }>();
+    for (const p of proposed) {
+      const lvl = allConsultants.find((c) => c.id === p.consultantId)?.level;
+      if (lvl !== "junior") continue;
+      const entry = juniorDays.get(p.consultantId) ?? { name: p.consultantName, days: [] };
+      entry.days.push(p.weekday);
+      juniorDays.set(p.consultantId, entry);
+    }
+    for (const a of existingAllocations) {
+      const lvl = allConsultants.find((c) => c.id === a.consultantId)?.level;
+      if (lvl !== "junior") continue;
+      const c = allConsultants.find((x) => x.id === a.consultantId);
+      const entry = juniorDays.get(a.consultantId) ?? { name: c?.name ?? `#${a.consultantId}`, days: [] };
+      entry.days.push(a.weekday);
+      juniorDays.set(a.consultantId, entry);
+    }
+    for (const info of Array.from(juniorDays.values())) {
+      const shares = info.days.some((d: number) => plenoSeniorDays.has(d));
+      if (!shares) {
+        issues.push(`${info.name} (Júnior) não compartilha nenhum dia com um Pleno/Sênior`);
+      }
+    }
   }
 
   return { feasible: issues.length === 0, issues, suggestions, proposed, earliestFeasibleDate: null };

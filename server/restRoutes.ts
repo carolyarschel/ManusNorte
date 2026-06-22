@@ -151,7 +151,13 @@ export function registerRestRoutes(app: Express) {
 
   app.post("/api/projects/:id/allocations", wrap(async (req, res) => {
     const id = Number(req.params.id);
-    await allocationDb.setForProject(id, req.body);
+    const raw = (Array.isArray(req.body) ? req.body : req.body?.allocations) ?? [];
+    const normalized = raw.map((a: { consultantId: number; weekday: number; role: string }) => ({
+      consultantId: a.consultantId,
+      weekday: a.weekday,
+      role: (a.role === "lider" || a.role === "líder") ? "líder" as const : "consultor" as const,
+    }));
+    await allocationDb.setForProject(id, normalized);
     res.json({ success: true });
   }));
 
@@ -199,6 +205,8 @@ export function registerRestRoutes(app: Express) {
           weekday: a.weekday,
           role: a.role,
         })),
+        issues: r?.issues ?? [],
+        suggestions: r?.suggestions ?? [],
         warnings: [...(r?.issues ?? []), ...(r?.suggestions ?? [])],
         suggestedStartDate: r?.earliestFeasibleDate ?? null,
       };
