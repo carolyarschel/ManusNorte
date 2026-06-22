@@ -28,6 +28,7 @@ const createSchema = z.object({
   startDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   cadence:     z.enum(["weekly", "biweekly_odd", "biweekly_even"]).default("weekly"),
+  notes:       z.string().nullable().optional(),
   levelSlots:  z.array(levelSlotSchema).default([]),
   pinnedSlots: z.array(pinnedSlotSchema).default([]),
 }).refine(dateOrderRefinement, dateOrderError);
@@ -39,6 +40,7 @@ const updateSchema = z.object({
   startDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   cadence:     z.enum(["weekly", "biweekly_odd", "biweekly_even"]).optional(),
+  notes:       z.string().nullable().optional(),
   levelSlots:  z.array(levelSlotSchema).optional(),
   pinnedSlots: z.array(pinnedSlotSchema).optional(),
   leaderId:    z.number().int().positive().nullable().optional(),
