@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { LuCalendar, LuGauge, LuGroup, LuBriefcaseBusiness, LuChartGantt, LuSun, LuMoon } from "react-icons/lu";
+import { LuCalendar, LuGauge, LuGroup, LuBriefcaseBusiness, LuChartGantt, LuSun, LuMoon, LuBot } from "react-icons/lu";
 
 const NAV = [
   { href: "/calendar",    icon: <LuCalendar />,          label: "Calendário"  },
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/consultants", icon: <LuGroup />,             label: "Consultores" },
   { href: "/projects",    icon: <LuBriefcaseBusiness />, label: "Projetos"    },
   { href: "/simulation",  icon: <LuChartGantt />,        label: "Simulação"   },
+  { href: "/agent",       icon: <LuBot />,               label: "Agente"      },
 ];
 
 export function Sidebar() {

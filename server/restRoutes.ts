@@ -6,6 +6,7 @@ import type { Express, Request, Response } from "express";
 import { consultantDb, projectDb, allocationDb, absenceDb } from "./db";
 import { simulationService } from "./simulation";
 import { schedulingService } from "./scheduling";
+import { runAgentChat, type ChatMessage } from "./agentChat";
 
 function wrap(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response) => {
@@ -219,5 +220,15 @@ export function registerRestRoutes(app: Express) {
     const { projectIds } = req.body as { projectIds: number[] };
     const results = await schedulingService.schedule(projectIds);
     res.json({ results });
+  }));
+
+  // ── Agent ──────────────────────────────────────────────────────────────────
+  app.post("/api/agent/chat", wrap(async (req, res) => {
+    const { history } = req.body as { history: ChatMessage[] };
+    if (!Array.isArray(history)) {
+      return void res.status(400).json({ error: "history deve ser um array de mensagens" });
+    }
+    const reply = await runAgentChat(history);
+    res.json({ reply });
   }));
 }
