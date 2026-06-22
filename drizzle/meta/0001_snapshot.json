@@ -1,0 +1,660 @@
+{
+  "version": "5",
+  "dialect": "mysql",
+  "id": "528652a8-a982-4d41-8790-969d41934b34",
+  "prevId": "ea0210d3-bfdd-4291-9780-32963b56e394",
+  "tables": {
+    "absences": {
+      "name": "absences",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "consultant_id": {
+          "name": "consultant_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_absences_consultant": {
+          "name": "idx_absences_consultant",
+          "columns": [
+            "consultant_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "absences_id": {
+          "name": "absences_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "allocations": {
+      "name": "allocations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consultant_id": {
+          "name": "consultant_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "weekday": {
+          "name": "weekday",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "enum('líder','consultor')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'consultor'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_allocations_project": {
+          "name": "idx_allocations_project",
+          "columns": [
+            "project_id"
+          ],
+          "isUnique": false
+        },
+        "idx_allocations_consultant": {
+          "name": "idx_allocations_consultant",
+          "columns": [
+            "consultant_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "allocations_id": {
+          "name": "allocations_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "consultants": {
+      "name": "consultants",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "level": {
+          "name": "level",
+          "type": "enum('junior','pleno','senior')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'junior'"
+        },
+        "is_leader": {
+          "name": "is_leader",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "max_days": {
+          "name": "max_days",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 5
+        },
+        "restrictions": {
+          "name": "restrictions",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "('[]')"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_consultants_level": {
+          "name": "idx_consultants_level",
+          "columns": [
+            "level"
+          ],
+          "isUnique": false
+        },
+        "idx_consultants_is_leader": {
+          "name": "idx_consultants_is_leader",
+          "columns": [
+            "is_leader"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "consultants_id": {
+          "name": "consultants_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "level_slots": {
+      "name": "level_slots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "level": {
+          "name": "level",
+          "type": "enum('junior','pleno','senior')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_leader": {
+          "name": "is_leader",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "days_per_week": {
+          "name": "days_per_week",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "visit_days": {
+          "name": "visit_days",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "('[]')"
+        },
+        "assigned_consultant_id": {
+          "name": "assigned_consultant_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "assigned_days": {
+          "name": "assigned_days",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "('[]')"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_level_slots_project": {
+          "name": "idx_level_slots_project",
+          "columns": [
+            "project_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "level_slots_id": {
+          "name": "level_slots_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "pinned_slots": {
+      "name": "pinned_slots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consultant_id": {
+          "name": "consultant_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "days_per_week": {
+          "name": "days_per_week",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "visit_days": {
+          "name": "visit_days",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "('[]')"
+        },
+        "assigned_days": {
+          "name": "assigned_days",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "('[]')"
+        },
+        "cadence": {
+          "name": "cadence",
+          "type": "enum('weekly','biweekly_odd','biweekly_even')",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'weekly'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_pinned_slots_project": {
+          "name": "idx_pinned_slots_project",
+          "columns": [
+            "project_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "pinned_slots_id": {
+          "name": "pinned_slots_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "projects": {
+      "name": "projects",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "acronym": {
+          "name": "acronym",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "client": {
+          "name": "client",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('confirmed','hot','cold','archived')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'cold'"
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cadence": {
+          "name": "cadence",
+          "type": "enum('weekly','biweekly_odd','biweekly_even')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'weekly'"
+        },
+        "visit_days": {
+          "name": "visit_days",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "('[]')"
+        },
+        "leader_consultant_id": {
+          "name": "leader_consultant_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "idx_projects_status": {
+          "name": "idx_projects_status",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_projects_dates": {
+          "name": "idx_projects_dates",
+          "columns": [
+            "start_date",
+            "end_date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "projects_id": {
+          "name": "projects_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "openId": {
+          "name": "openId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "loginMethod": {
+          "name": "loginMethod",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "enum('user','admin')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'user'"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        },
+        "lastSignedIn": {
+          "name": "lastSignedIn",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "users_id": {
+          "name": "users_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "users_openId_unique": {
+          "name": "users_openId_unique",
+          "columns": [
+            "openId"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    }
+  },
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {},
+    "indexes": {}
+  }
+}
