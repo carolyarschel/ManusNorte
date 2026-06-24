@@ -43,7 +43,7 @@ const updateSchema = z.object({
   notes:       z.string().nullable().optional(),
   levelSlots:  z.array(levelSlotSchema).optional(),
   pinnedSlots: z.array(pinnedSlotSchema).optional(),
-  leaderId:    z.number().int().positive().nullable().optional(),
+  leaderConsultantId: z.number().int().positive().nullable().optional(),
 }).refine(
   (d) => !(d.startDate && d.endDate) || d.startDate <= d.endDate,
   dateOrderError,
@@ -63,6 +63,7 @@ projectRoutes.get("/",                        projectController.list);
 projectRoutes.get("/:id",                     projectController.getById);
 projectRoutes.post("/",                        validate(createSchema),      projectController.create);
 projectRoutes.put("/:id",                      validate(updateSchema),      projectController.update);
+projectRoutes.patch("/:id",                    validate(updateSchema),      projectController.update);
 projectRoutes.delete("/:id",                   projectController.remove);
-projectRoutes.put("/:id/allocations",          validate(allocationsSchema), projectController.setAllocations);
+projectRoutes.post("/:id/allocations",         validate(allocationsSchema), projectController.setAllocations);
 projectRoutes.delete("/:id/allocations",       projectController.clearAllocations);

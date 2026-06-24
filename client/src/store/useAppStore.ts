@@ -20,8 +20,14 @@ interface AppState {
   removeConsultant: (id: number) => Promise<void>;
 
   // Projects
-  addProject: (data: Omit<Project, "id" | "levelSlots" | "pinnedSlots" | "allocations" | "allocatedConsultants" | "visitDays">) => Promise<void>;
-  updateProject: (id: number, data: Partial<Omit<Project, "id" | "levelSlots" | "pinnedSlots" | "allocations" | "allocatedConsultants">>) => Promise<void>;
+  addProject: (data: Omit<Project, "id" | "levelSlots" | "pinnedSlots" | "allocations" | "allocatedConsultants" | "visitDays"> & {
+    levelSlots?: { level: string; isLeader: boolean; daysPerWeek: number; visitDays: number[] }[];
+    pinnedSlots?: { consultantId: number; daysPerWeek: number; visitDays: number[]; cadence?: string | null }[];
+  }) => Promise<void>;
+  updateProject: (id: number, data: Partial<Omit<Project, "id" | "levelSlots" | "pinnedSlots" | "allocations" | "allocatedConsultants">> & {
+    levelSlots?: { level: string; isLeader: boolean; daysPerWeek: number; visitDays: number[] }[];
+    pinnedSlots?: { consultantId: number; daysPerWeek: number; visitDays: number[]; cadence?: string | null }[];
+  }) => Promise<void>;
   updateProjectFull: (id: number, data: Parameters<typeof api.projects.updateFull>[1]) => Promise<void>;
   removeProject: (id: number) => Promise<void>;
 
@@ -186,12 +192,14 @@ export const useAppStore = create<AppState>()(
         cadence: data.cadence,
         visitDays: [],
         notes: data.notes,
+        levelSlots: data.levelSlots,
+        pinnedSlots: data.pinnedSlots,
       });
       await get().loadAll();
     },
 
     updateProject: async (id, data) => {
-      await api.projects.update(id, data);
+      await api.projects.update(id, data as Parameters<typeof api.projects.update>[1]);
       await get().loadAll();
     },
 

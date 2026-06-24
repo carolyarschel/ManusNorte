@@ -49,12 +49,16 @@ export const api = {
     create: (data: {
       acronym: string; client: string; status: string;
       startDate: string; endDate: string; cadence: Cadence;
-      visitDays: number[]; notes?: string | null;
+      visitDays?: number[]; notes?: string | null;
+      levelSlots?: { level: string; isLeader: boolean; daysPerWeek: number; visitDays: number[] }[];
+      pinnedSlots?: { consultantId: number; daysPerWeek: number; visitDays: number[]; cadence?: string | null }[];
     }) => req<Project>("/projects", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: Partial<{
       acronym: string; client: string; status: string;
       startDate: string; endDate: string; cadence: Cadence;
       visitDays: number[]; leaderConsultantId: number | null; notes: string | null;
+      levelSlots: { level: string; isLeader: boolean; daysPerWeek: number; visitDays: number[] }[];
+      pinnedSlots: { consultantId: number; daysPerWeek: number; visitDays: number[]; cadence?: string | null }[];
     }>) => req<Project>(`/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     updateFull: (id: number, data: {
       fields: Partial<{
@@ -84,14 +88,14 @@ export const api = {
 
     // Allocations
     setAllocations: (projectId: number, allocations: { consultantId: number; weekday: number; role: string }[]) =>
-      req<{ success: boolean }>(`/projects/${projectId}/allocations`, { method: "POST", body: JSON.stringify(allocations) }),
+      req<{ success: boolean }>(`/projects/${projectId}/allocations`, { method: "POST", body: JSON.stringify({ allocations }) }),
     removeAllocations: (projectId: number) =>
       req<void>(`/projects/${projectId}/allocations`, { method: "DELETE" }),
   },
 
   absences: {
     list: () => req<Absence[]>("/absences"),
-    listByConsultant: (id: number) => req<Absence[]>(`/absences?consultantId=${id}`),
+    listByConsultant: (id: number) => req<Absence[]>(`/absences/consultant/${id}`),
     create: (data: Omit<Absence, "id">) =>
       req<Absence>("/absences", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: Partial<Omit<Absence, "id">>) =>
@@ -102,11 +106,7 @@ export const api = {
   simulation: {
     run: (data: {
       projectIds: number[];
-      startDate?: string;
-    }) => req<SimulationResult>("/simulation/run", { method: "POST", body: JSON.stringify(data) }),
-    apply: (data: {
-      results: SimulationResult["results"];
-    }) => req<void>("/simulation/apply", { method: "POST", body: JSON.stringify(data) }),
+    }) => req<SimulationResult>("/simulation", { method: "POST", body: JSON.stringify(data) }),
   },
 };
 

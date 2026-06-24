@@ -105,7 +105,9 @@ export default function ProjectsPage() {
           await setAllocations(editingId, newAllocations);
         }
       } else {
-        const payload = { acronym: form.acronym, client: form.client, status: form.status, startDate: form.startDate, endDate: form.endDate, cadence: form.cadence, notes: form.notes || null, leaderConsultantId: null as null };
+        const levelSlots = form.levelSlots.map((s) => ({ level: s.level, isLeader: s.isLeader, daysPerWeek: s.daysPerWeek, visitDays: s.visitDays as number[] }));
+        const pinnedSlots = form.pinnedSlots.filter((s) => s.consultantId !== null).map((s) => ({ consultantId: s.consultantId!, daysPerWeek: s.daysPerWeek, visitDays: s.visitDays as number[], cadence: s.cadence }));
+        const payload = { acronym: form.acronym, client: form.client, status: form.status, startDate: form.startDate, endDate: form.endDate, cadence: form.cadence, notes: form.notes || null, leaderConsultantId: null as null, levelSlots, pinnedSlots };
         if (editingId !== null) { await updateProject(editingId, payload); } else { await addProject(payload); }
       }
       closeModal();

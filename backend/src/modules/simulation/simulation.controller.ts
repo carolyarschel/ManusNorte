@@ -6,12 +6,21 @@ export const simulationController = {
   async simulate(req: Request, res: Response, next: NextFunction) {
     try {
       const { projectIds, randomize, extraCommitted } = req.body;
-      const results = await simulationService.simulateBatch(
+      const rawResults = await simulationService.simulateBatch(
         projectIds,
         randomize === true,
         extraCommitted ?? [],
       );
-      res.json(results);
+      const results = Object.entries(rawResults).map(([id, r]) => ({
+        projectId:          Number(id),
+        feasible:           r.feasible,
+        allocations:        r.proposed.map((a) => ({ consultantId: a.consultantId, weekday: a.weekday, role: a.role })),
+        issues:             r.issues,
+        suggestions:        r.suggestions,
+        warnings:           [] as string[],
+        suggestedStartDate: r.earliestFeasibleDate ?? null,
+      }));
+      res.json({ results });
     } catch (err) {
       next(err);
     }

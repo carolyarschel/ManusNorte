@@ -41,4 +41,5 @@ consultantRoutes.get("/:id",       consultantController.getById);
 consultantRoutes.get("/:id/busy",  consultantController.busyDays);
 consultantRoutes.post("/",         validate(createSchema), consultantController.create);
 consultantRoutes.put("/:id",       validate(updateSchema), consultantController.update);
+consultantRoutes.patch("/:id",     validate(updateSchema), consultantController.update);
 consultantRoutes.delete("/:id",    consultantController.remove);

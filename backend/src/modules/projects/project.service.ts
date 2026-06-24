@@ -24,7 +24,7 @@ function projectToDTO(
     endDate:   toDateStr(row.end_date),
     cadence:   row.cadence,
     visitDays: row.visit_days,
-    leaderId:  row.leader_consultant_id ?? null,
+    leaderConsultantId: row.leader_consultant_id ?? null,
     notes:     row.notes ?? null,
     levelSlots: levelSlots.map((s) => ({
       id:                    s.id,
@@ -204,7 +204,7 @@ export const projectService = {
   async update(id: number, data: Partial<{
     acronym: string; client: string; status: string;
     startDate: string; endDate: string; cadence: string;
-    leaderId: number | null; notes: string | null;
+    leaderConsultantId: number | null; notes: string | null;
     levelSlots: { level: string; isLeader: boolean; daysPerWeek: number; visitDays: number[] }[];
     pinnedSlots: { consultantId: number; daysPerWeek: number; visitDays: number[]; cadence?: string | null }[];
   }>) {
@@ -218,7 +218,7 @@ export const projectService = {
       start_date: data.startDate,
       end_date:   data.endDate,
       cadence:    data.cadence,
-      ...("leaderId" in data ? { leader_consultant_id: data.leaderId ?? null } : {}),
+      ...("leaderConsultantId" in data ? { leader_consultant_id: data.leaderConsultantId ?? null } : {}),
       ...("notes" in data ? { notes: data.notes ?? null } : {}),
     };
 
