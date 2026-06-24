@@ -147,7 +147,7 @@ export const useAppStore = create<AppState>()((set) => ({
   },
 
   setProjectLeader: async (id, leaderId) => {
-    const updated = await api.projects.update(id, { leaderId });
+    const updated = await api.projects.update(id, { leaderConsultantId: leaderId });
     set((s) => ({ projects: s.projects.map((p) => (p.id === id ? updated : p)) }));
   },
 
@@ -160,7 +160,7 @@ export const useAppStore = create<AppState>()((set) => ({
     const leaderAlloc = allocations.find((a) => a.role === "lider");
     const confirmed = await api.projects.update(projectId, {
       status: "confirmed",
-      leaderId: leaderAlloc?.consultantId ?? null,
+      leaderConsultantId: leaderAlloc?.consultantId ?? null,
     });
     set((s) => ({
       projects: s.projects.map((p) => (p.id === projectId ? confirmed : p)),

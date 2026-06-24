@@ -39,6 +39,10 @@ export function registerRestRoutes(app: Express) {
     const c = await consultantDb.update(Number(req.params.id), req.body);
     res.json(c);
   }));
+  app.put("/api/consultants/:id", wrap(async (req, res) => {
+    const c = await consultantDb.update(Number(req.params.id), req.body);
+    res.json(c);
+  }));
 
   app.delete("/api/consultants/:id", wrap(async (req, res) => {
     await consultantDb.remove(Number(req.params.id));
@@ -128,6 +132,20 @@ export function registerRestRoutes(app: Express) {
       allocatedConsultants: (await projectDb.getAllocations(id)).map((a) => a.consultantId),
     });
   }));
+  app.put("/api/projects/:id", wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    const { pinnedSlots: ps, levelSlots: ls, ...projectData } = req.body;
+    const p = await projectDb.update(id, projectData);
+    if (ps !== undefined) await projectDb.setPinnedSlots(id, ps.map((s: Record<string, unknown>) => ({ ...s, projectId: id })));
+    if (ls !== undefined) await projectDb.setLevelSlots(id, ls.map((s: Record<string, unknown>) => ({ ...s, projectId: id })));
+    res.json({
+      ...p,
+      allocations: await projectDb.getAllocations(id),
+      pinnedSlots: await projectDb.getPinnedSlots(id),
+      levelSlots: await projectDb.getLevelSlots(id),
+      allocatedConsultants: (await projectDb.getAllocations(id)).map((a) => a.consultantId),
+    });
+  }));
 
   // Full update (project + slots together)
   app.put("/api/projects/:id/full", wrap(async (req, res) => {
@@ -151,6 +169,17 @@ export function registerRestRoutes(app: Express) {
   }));
 
   app.post("/api/projects/:id/allocations", wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    const raw = (Array.isArray(req.body) ? req.body : req.body?.allocations) ?? [];
+    const normalized = raw.map((a: { consultantId: number; weekday: number; role: string }) => ({
+      consultantId: a.consultantId,
+      weekday: a.weekday,
+      role: (a.role === "lider" || a.role === "líder") ? "líder" as const : "consultor" as const,
+    }));
+    await allocationDb.setForProject(id, normalized);
+    res.json({ success: true });
+  }));
+  app.put("/api/projects/:id/allocations", wrap(async (req, res) => {
     const id = Number(req.params.id);
     const raw = (Array.isArray(req.body) ? req.body : req.body?.allocations) ?? [];
     const normalized = raw.map((a: { consultantId: number; weekday: number; role: string }) => ({
@@ -185,6 +214,10 @@ export function registerRestRoutes(app: Express) {
     const a = await absenceDb.update(Number(req.params.id), req.body);
     res.json(a);
   }));
+  app.put("/api/absences/:id", wrap(async (req, res) => {
+    const a = await absenceDb.update(Number(req.params.id), req.body);
+    res.json(a);
+  }));
 
   app.delete("/api/absences/:id", wrap(async (req, res) => {
     await absenceDb.remove(Number(req.params.id));
@@ -192,6 +225,11 @@ export function registerRestRoutes(app: Express) {
   }));
 
   // ── Simulation ─────────────────────────────────────────────────────────────
+  app.post("/api/simulation", wrap(async (req, res) => {
+    const { projectIds, randomize, extraCommitted } = req.body as { projectIds: number[]; randomize?: boolean; extraCommitted?: unknown[] };
+    const results = await simulationService.simulateBatch(projectIds, randomize ?? false, (extraCommitted ?? []) as any);
+    res.json(results);
+  }));
   app.post("/api/simulation/run", wrap(async (req, res) => {
     const { projectIds, randomize } = req.body as { projectIds: number[]; randomize?: boolean };
     const results = await simulationService.simulateBatch(projectIds, randomize ?? false);
@@ -216,6 +254,11 @@ export function registerRestRoutes(app: Express) {
   }));
 
   // ── Scheduling ─────────────────────────────────────────────────────────────
+  app.post("/api/scheduling", wrap(async (req, res) => {
+    const { projectIds } = req.body as { projectIds: number[] };
+    const results = await schedulingService.schedule(projectIds);
+    res.json({ results });
+  }));
   app.post("/api/scheduling/run", wrap(async (req, res) => {
     const { projectIds } = req.body as { projectIds: number[] };
     const results = await schedulingService.schedule(projectIds);

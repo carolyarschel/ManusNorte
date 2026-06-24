@@ -51,7 +51,7 @@ export interface Project {
   startDate: string;
   endDate: string;
   cadence: Cadence;
-  leaderId?: number | null;       // which allocated consultant is acting as project leader
+  leaderConsultantId?: number | null; // which allocated consultant is acting as project leader
   notes?: string | null;
   // Demand definition (replaces old visitDays + requiredLeader + mandatoryConsultants)
   levelSlots: LevelSlot[];

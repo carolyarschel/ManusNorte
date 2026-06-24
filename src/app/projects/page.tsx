@@ -386,8 +386,8 @@ export default function ProjectsPage() {
                 </div>
 
                 {(p.allocatedConsultants ?? []).length > 0 && (() => {
-                  const leader = p.leaderId ? (consultantMap.get(p.leaderId) ?? null) : null;
-                  const others = (p.allocatedConsultants ?? []).filter((id) => id !== p.leaderId);
+                  const leader = p.leaderConsultantId ? (consultantMap.get(p.leaderConsultantId) ?? null) : null;
+                  const others = (p.allocatedConsultants ?? []).filter((id) => id !== p.leaderConsultantId);
                   const hasLeaderCandidates = (p.allocatedConsultants ?? []).some(
                     (id) => consultantMap.get(id)?.isLeader
                   );
