@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\backend\\\\src\" -Recurse -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\" -Force)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\" -Force | Select-Object Name, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\backend\" -Force | Select-Object Name, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\src\" -Force | Select-Object Name, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\backend\\\\src\" -Recurse -Force | Where-Object {$_.PSIsContainer} | Select-Object FullName | ForEach-Object {$_.FullName.Replace\\(\"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\backend\\\\src\\\\\", \"\"\\)} | Sort-Object)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\src\" -Recurse -Force | Where-Object {$_.PSIsContainer} | Select-Object FullName | ForEach-Object {$_.FullName.Replace\\(\"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\src\\\\\", \"\"\\)} | Sort-Object)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\src\\\\app\" -Force | Select-Object Name, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\\\\backend\\\\src\\\\modules\" -Force | Select-Object Name, @{Name='Type';Expression={if\\($_.PSIsContainer\\){'Directory'}else{'File'}}} | Format-Table -AutoSize)",
+      "Bash(pg_dump --version)",
+      "Bash(mkdir -p \"c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db\")",
+      "Bash(PGPASSWORD=123123 pg_dump -h localhost -p 5432 -U postgres -d \"alloc-platform\" --no-owner --no-acl -v)",
+      "Bash(PGPASSWORD=123123 pg_dump -h localhost -p 5432 -U postgres -d \"alloc-platform\" --no-owner --no-acl -f \"c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db/dump.sql\")",
+      "Bash(grep -c \"\\\\\\\\\\\\\\\\restrict\" \"c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db/dump.sql\")",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\restrict\" \"c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db/dump.sql\")",
+      "Bash(sed -i '/^\\\\\\\\restrict /d; /^\\\\\\\\unrestrict /d' \"c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db/dump.sql\" && echo \"Done\" && grep -n \"\\\\\\\\\\\\\\\\restrict\" \"c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db/dump.sql\" | grep -v \"restrictions\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\cyars\\\\Documents\\\\Alocacao\\\\alloc-platform\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(powershell -Command \"\\(Get-Content 'c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db/dump.sql' -Raw -Encoding UTF8\\) -replace 'lÃ­der','lider' | Set-Content 'c:/Users/cyars/Documents/Alocacao/alloc-platform/docker/init-db/dump.sql' -Encoding UTF8\")",
+      "Bash(powershell -Command ' *)",
+      "Bash(node -e \"const { Pool } = require\\('pg'\\); console.log\\(require\\('pg/package.json'\\).version\\); const types = require\\('pg'\\).types; console.log\\('DATE parser:', types.getTypeParser\\(1082\\).toString\\(\\).slice\\(0, 100\\)\\);\")",
+      "Bash(node -e \"const types = require\\('pg'\\).types; const parser = types.getTypeParser\\(1082\\); console.log\\('Result of parsing 2026-06-08:', JSON.stringify\\(parser\\('2026-06-08'\\)\\)\\); console.log\\('Type:', typeof parser\\('2026-06-08'\\)\\);\")",
+      "Bash(Remove-Item -Force \"c:\\\\Users\\\\cyars\\\\Documents\\\\Norte\\\\Alocacao\\\\alloc-platform\\\\.dockerignore\")",
+      "Bash(Remove-Item -Force \"c:\\\\Users\\\\cyars\\\\Documents\\\\Norte\\\\Alocacao\\\\alloc-platform\\\\backend\\\\.dockerignore\")",
+      "Bash(Remove-Item -Force \"c:\\\\Users\\\\cyars\\\\Documents\\\\Norte\\\\Alocacao\\\\alloc-platform\\\\.env.docker\")",
+      "Bash(Remove-Item -Force \"c:\\\\Users\\\\cyars\\\\Documents\\\\Norte\\\\Alocacao\\\\alloc-platform\\\\docker-compose.yml\")",
+      "Bash(Remove-Item -Force \"c:\\\\Users\\\\cyars\\\\Documents\\\\Norte\\\\Alocacao\\\\alloc-platform\\\\Dockerfile\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\cyars\\Documents\\Alocacao\\alloc-platform\\docker\\init-db"
+    ]
+  }
+}
